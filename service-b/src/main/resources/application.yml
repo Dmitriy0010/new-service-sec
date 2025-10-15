@@ -1,0 +1,17 @@
+server:
+  port: 8443
+  ssl:
+    key-store: classpath:keystore/service-b.p12
+    key-store-password: ${KEYSTORE_PASSWORD:changeit}
+    key-alias: service-b
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          jwk-set-uri: https://auth-server:9443/.well-known/jwks.json
+
+logging:
+  level:
+    org.springframework.security: INFO
