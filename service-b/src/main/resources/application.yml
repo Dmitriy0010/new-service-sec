@@ -10,7 +10,7 @@ spring:
     oauth2:
       resourceserver:
         jwt:
-          jwk-set-uri: https://auth-server:9443/.well-known/jwks.json
+          issuer-uri: https://auth-server:9443
 
 logging:
   level:

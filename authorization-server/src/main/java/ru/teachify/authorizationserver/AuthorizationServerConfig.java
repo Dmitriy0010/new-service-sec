@@ -1,7 +1,6 @@
 package ru.teachify.authorizationserver;
 
 import com.nimbusds.jose.jwk.JWKSet;
-import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.source.ImmutableJWKSet;
 import com.nimbusds.jose.jwk.source.JWKSource;
 import com.nimbusds.jose.proc.SecurityContext;
@@ -24,10 +23,6 @@ import org.springframework.security.oauth2.server.authorization.token.JwtEncodin
 import org.springframework.security.oauth2.server.authorization.token.OAuth2TokenCustomizer;
 import org.springframework.security.web.SecurityFilterChain;
 
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.interfaces.RSAPrivateKey;
-import java.security.interfaces.RSAPublicKey;
 import java.time.Duration;
 import java.util.List;
 import java.util.UUID;
@@ -36,24 +31,24 @@ import java.util.UUID;
 public class AuthorizationServerConfig {
 
     @Bean
-    public RegisteredClientRepository registeredClientRepository() {
+	public RegisteredClientRepository registeredClientRepository() {
         RegisteredClient serviceA = RegisteredClient.withId(UUID.randomUUID().toString())
-                .clientId("service-a")
+				.clientId("service-a-client")
                 .clientSecret("{noop}" + System.getenv().getOrDefault("SERVICE_A_SECRET", "dev-secret-a"))
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-                .scope("serviceb.read")
+				.scope("serviceb.read")
                 .tokenSettings(TokenSettings.builder()
                         .accessTokenTimeToLive(Duration.ofDays(1))
                         .build())
                 .build();
 
         RegisteredClient serviceB = RegisteredClient.withId(UUID.randomUUID().toString())
-                .clientId("service-b")
+				.clientId("service-b")
                 .clientSecret("{noop}" + System.getenv().getOrDefault("SERVICE_B_SECRET", "dev-secret-b"))
                 .clientAuthenticationMethod(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)
                 .authorizationGrantType(AuthorizationGrantType.CLIENT_CREDENTIALS)
-                .scope("serviceb.read")
+				.scope("servicea.read")
                 .tokenSettings(TokenSettings.builder()
                         .accessTokenTimeToLive(Duration.ofDays(1))
                         .build())
@@ -69,28 +64,11 @@ public class AuthorizationServerConfig {
         return http.formLogin(Customizer.withDefaults()).build();
     }
 
-    @Bean
-    public JWKSource<SecurityContext> jwkSource() {
-        RSAKey rsaKey = generateRsa();
-        JWKSet jwkSet = new JWKSet(rsaKey);
-        return new ImmutableJWKSet<>(jwkSet);
-    }
-
-    private static RSAKey generateRsa() {
-        try {
-            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-            keyPairGenerator.initialize(2048);
-            KeyPair keyPair = keyPairGenerator.generateKeyPair();
-            RSAPublicKey publicKey = (RSAPublicKey) keyPair.getPublic();
-            RSAPrivateKey privateKey = (RSAPrivateKey) keyPair.getPrivate();
-            return new RSAKey.Builder(publicKey)
-                    .privateKey(privateKey)
-                    .keyID(UUID.randomUUID().toString())
-                    .build();
-        } catch (Exception ex) {
-            throw new IllegalStateException(ex);
-        }
-    }
+	@Bean
+	public JWKSource<SecurityContext> jwkSource(KeyManager keyManager) {
+		JWKSet jwkSet = keyManager.getJwkSet();
+		return new ImmutableJWKSet<>(jwkSet);
+	}
 
     @Bean
     public AuthorizationServerSettings authorizationServerSettings() {
@@ -99,11 +77,30 @@ public class AuthorizationServerConfig {
                 .build();
     }
 
-    @Bean
-    public OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer() {
-        return context -> {
-            JwtClaimsSet.Builder claims = context.getClaims();
-            claims.claim("aud", List.of("service-b"));
-        };
-    }
+	@Bean
+	public OAuth2TokenCustomizer<JwtEncodingContext> jwtCustomizer() {
+		return context -> {
+			JwtClaimsSet.Builder claims = context.getClaims();
+			var scopes = context.getAuthorizedScopes();
+			var audience = new java.util.ArrayList<String>();
+			if (scopes.contains("serviceb.read")) {
+				audience.add("service-b");
+			}
+			if (scopes.contains("servicea.read")) {
+				audience.add("service-a");
+			}
+			if (!audience.isEmpty()) {
+				claims.claim("aud", audience);
+			}
+		};
+	}
+
+	@Bean
+	@Order(Ordered.LOWEST_PRECEDENCE)
+	public SecurityFilterChain adminEndpointsSecurityFilterChain(HttpSecurity http) throws Exception {
+		http
+			.securityMatcher("/admin/**")
+			.authorizeHttpRequests(authorize -> authorize.anyRequest().denyAll());
+		return http.build();
+	}
 }

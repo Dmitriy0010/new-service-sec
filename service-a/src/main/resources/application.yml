@@ -9,6 +9,9 @@ server:
 spring:
   security:
     oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://auth-server:9443
       client:
         registration:
           service-b:                     # регистрация клиента для вызова Service B

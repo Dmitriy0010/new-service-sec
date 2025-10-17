@@ -1,41 +1,62 @@
 package ru.teachify.servicea;
 
+import org.springframework.cache.CacheManager;
+import org.springframework.cache.annotation.EnableCaching;
+import org.springframework.cache.caffeine.CaffeineCacheManager;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.oauth2.client.AuthorizedClientServiceReactiveOAuth2AuthorizedClientManager;
-import org.springframework.security.oauth2.client.ReactiveOAuth2AuthorizedClientManager;
-import org.springframework.security.oauth2.client.registration.ReactiveClientRegistrationRepository;
-import org.springframework.security.oauth2.client.web.reactive.function.client.ServerOAuth2AuthorizedClientExchangeFilterFunction;
-import org.springframework.security.oauth2.client.InMemoryReactiveOAuth2AuthorizedClientService;
-import org.springframework.security.oauth2.client.ReactiveOAuth2AuthorizedClientService;
+import org.springframework.http.client.reactive.ReactorClientHttpConnector;
+import org.springframework.util.StringUtils;
+import org.springframework.web.reactive.function.client.ExchangeFilterFunction;
 import org.springframework.web.reactive.function.client.WebClient;
+import reactor.netty.http.client.HttpClient;
+
+import java.time.Duration;
+
 @Configuration
+@EnableCaching
 public class WebClientConfig {
 
     @Bean
-    public WebClient webClient(ServerOAuth2AuthorizedClientExchangeFilterFunction oauth2Function) {
-        oauth2Function.setDefaultClientRegistrationId("service-b");
+    public CacheManager cacheManager() {
+        CaffeineCacheManager manager = new CaffeineCacheManager("clientTokens");
+        manager.setCacheSpecification("maximumSize=100,expireAfterWrite=23h");
+        return manager;
+    }
+
+    @Bean
+    public TokenService tokenService(WebClient tokenWebClient) {
+        return new TokenService(tokenWebClient);
+    }
+
+    @Bean
+    public WebClient tokenWebClient() {
+        HttpClient httpClient = HttpClient.create()
+                .responseTimeout(Duration.ofSeconds(10));
+
         return WebClient.builder()
-                .baseUrl("https://service-b:8443")
-                .filter(oauth2Function)
+                .baseUrl("https://auth-server:9443")
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
                 .build();
     }
 
     @Bean
-    public ServerOAuth2AuthorizedClientExchangeFilterFunction oauth2Client(
-            ReactiveClientRegistrationRepository clientRegistrationRepository) {
+    public WebClient webClient(TokenService tokenService) {
+        ExchangeFilterFunction bearer = (request, next) -> {
+            String token = tokenService.getClientCredentialsToken();
+            return next.exchange(
+                    ClientRequest.from(request)
+                            .headers(h -> h.setBearerAuth(token))
+                            .build()
+            );
+        };
 
-        ReactiveOAuth2AuthorizedClientService authorizedClientService =
-                new InMemoryReactiveOAuth2AuthorizedClientService(clientRegistrationRepository);
+        HttpClient httpClient = HttpClient.create().responseTimeout(Duration.ofSeconds(5));
 
-        ReactiveOAuth2AuthorizedClientManager authorizedClientManager =
-                new AuthorizedClientServiceReactiveOAuth2AuthorizedClientManager(
-                        clientRegistrationRepository, authorizedClientService);
-
-        ServerOAuth2AuthorizedClientExchangeFilterFunction oauth2Function =
-                new ServerOAuth2AuthorizedClientExchangeFilterFunction(authorizedClientManager);
-        oauth2Function.setDefaultClientRegistrationId("service-b");
-
-        return oauth2Function;
+        return WebClient.builder()
+                .baseUrl("https://service-b:8443")
+                .clientConnector(new ReactorClientHttpConnector(httpClient))
+                .filter(bearer)
+                .build();
     }
 }
