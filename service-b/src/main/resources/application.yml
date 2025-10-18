@@ -1,17 +1,25 @@
 server:
-  port: 8443
-  ssl:
-    key-store: classpath:keystore/service-b.p12
-    key-store-password: ${KEYSTORE_PASSWORD:changeit}
-    key-alias: service-b
+  port: 9200
 
 spring:
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: https://auth-server:9443
+          issuer-uri: http://localhost:9000
+      client:
+        registration:
+          authclient:
+            client-id: ${SERVICE_B_AUTHCLIENT_ID:client-b}
+            client-secret: ${SERVICE_B_AUTHCLIENT_SECRET:secretB}
+            authorization-grant-type: client_credentials
+            scope: api.read
+        provider:
+          authclient:
+            token-uri: http://localhost:9000/oauth2/token
 
-logging:
-  level:
-    org.springframework.security: INFO
+app:
+  peers:
+    service-a-url: http://localhost:9100
+  oauth2:
+    registration-id: authclient

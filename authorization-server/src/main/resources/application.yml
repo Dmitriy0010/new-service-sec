@@ -1,0 +1,16 @@
+server:
+  port: 9000
+
+app:
+  # Issuer, который будет записан в поле "iss" JWT и использован ресурсными серверами
+  issuer: "http://localhost:9000" # В проде — обязательно https и реальный домен
+
+  # Конфигурация client-id/secret (используется в RegisteredClientRepository через @Value)
+  clients:
+    a:
+      id: client-a
+      secret: secretA
+    b:
+      id: client-b
+      secret: secretB
+

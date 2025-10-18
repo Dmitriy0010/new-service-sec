@@ -1,23 +1,25 @@
 server:
-  port: 8444
-  ssl:
-    enabled: true
-    key-store: classpath:keystore/service-a.p12
-    key-store-password: ${KEYSTORE_PASSWORD}
-    key-alias: service-a
+  port: 9100
 
 spring:
   security:
     oauth2:
       resourceserver:
         jwt:
-          issuer-uri: https://auth-server:9443
+          issuer-uri: http://localhost:9000
       client:
         registration:
-          service-b:                     # регистрация клиента для вызова Service B
+          authclient:              # <-- единое имя registrationId
+            client-id: ${SERVICE_A_AUTHCLIENT_ID:client-a}
+            client-secret: ${SERVICE_A_AUTHCLIENT_SECRET:secretA}
             authorization-grant-type: client_credentials
-            client-id: service-a-client   # client_id, предварительно зарегистрированный на Auth Server
-            client-secret: ${SERVICE_A_SECRET}
+            scope: api.read
         provider:
-          service-b:
-            token-uri: https://auth-server:9443/oauth2/token  # URL получения токена у Auth Server
+          authclient:
+            token-uri: http://localhost:9000/oauth2/token
+
+app:
+  peers:
+    service-b-url: http://localhost:9200
+  oauth2:
+    registration-id: authclient   # <- дефолтное имя, используем в WebClientConfig
