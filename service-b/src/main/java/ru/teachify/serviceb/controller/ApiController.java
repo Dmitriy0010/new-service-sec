@@ -1,9 +1,11 @@
-package ru.teachify.servicea.controller;
+package ru.teachify.serviceb.controller;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.reactive.function.client.WebClient;
 
 @Slf4j
@@ -15,7 +17,7 @@ public class ApiController {
     private final String serviceBUrl;
 
     public ApiController(WebClient webClient,
-                         @Value("${app.peers.service-b-url}") String serviceBUrl) {
+                         @Value("${app.peers.service-a-url}") String serviceBUrl) {
         this.webClient = webClient;
         this.serviceBUrl = serviceBUrl;
     }
